@@ -204,20 +204,26 @@ namespace TDCG
             Dictionary<string, TMONode> motion_nodes = new Dictionary<string, TMONode>();
 
             foreach (TMONode node in motion.nodes)
-                try {
+                try
+                {
                     motion_nodes.Add(node.Name, node);
-                } catch (ArgumentException) {
+                }
+                catch (ArgumentException)
+                {
                     Console.WriteLine("node {0} already exists.", node.Name);
                 }
             foreach (TMONode node in nodes)
             {
-                if (! motion_nodes.ContainsKey(node.Name))
+                if (!motion_nodes.ContainsKey(node.Name))
                 {
                     throw new ArgumentException("error: node not found in motion: " + node.Name);
                 }
-                try {
+                try
+                {
                     source_nodes.Add(node.Name, node);
-                } catch (ArgumentException) {
+                }
+                catch (ArgumentException)
+                {
                     Console.WriteLine("node {0} already exists.", node.Name);
                 }
             }
@@ -243,11 +249,11 @@ namespace TDCG
             TMOFrame[] append_frames = new TMOFrame[append_length];
             for (int i = 0; i < motion.frames.Length; i++)
                 append_frames[i] = TMOFrame.Select(source_frame, motion.frames[i], id_pair);
-                
+
             int old_length = frames.Length;
             Array.Resize(ref frames, frames.Length + append_length);
             Array.Copy(append_frames, 0, frames, old_length, append_length);
-            this.opt0 = frames.Length-1;
+            this.opt0 = frames.Length - 1;
         }
 
         /// <summary>
@@ -261,9 +267,9 @@ namespace TDCG
             int[] id_pair = CreateNodeIdPair(motion);
 
             int i0 = (frames.Length > 1) ? frames.Length - 1 - 1 : 0;
-            int i1 = frames.Length-1;
+            int i1 = frames.Length - 1;
             int i2 = 0;
-            int i3 = ( motion.frames.Length > 1 ) ? 1 : 0;
+            int i3 = (motion.frames.Length > 1) ? 1 : 0;
 
             TMOFrame frame0 = frames[i0];
             TMOFrame frame1 = frames[i1];
@@ -274,7 +280,7 @@ namespace TDCG
             int old_length = frames.Length;
             Array.Resize(ref frames, frames.Length + append_length);
             Array.Copy(interp_frames, 0, frames, old_length, append_length);
-            this.opt0 = frames.Length-1;
+            this.opt0 = frames.Length - 1;
         }
 
         /// <summary>
@@ -306,7 +312,7 @@ namespace TDCG
                 return;
             if (frame_index < 0)
                 return;
-            if (frame_index > frames.Length-1)
+            if (frame_index > frames.Length - 1)
                 return;
             if (frame_index > 0)
                 Array.Copy(frames, frame_index, frames, 0, 1);
@@ -367,11 +373,11 @@ namespace TDCG
             TMOFrame[] interp_frames = new TMOFrame[append_length];
             for (int i = 0; i < motion.frames.Length; i++)
                 interp_frames[i] = TMOFrame.AddSub(source_frame, motion.frames[i], motion_frame, id_pair);
-                
+
             int old_length = frames.Length;
             Array.Resize(ref frames, frames.Length + append_length);
             Array.Copy(interp_frames, 0, frames, old_length, append_length);
-            this.opt0 = frames.Length-1;
+            this.opt0 = frames.Length - 1;
         }
 
         /// <summary>
@@ -728,11 +734,11 @@ namespace TDCG
 
             float p0 = 0.0f;
             float p2 = 1.0f;
-            float dt = 1.0f/length;
+            float dt = 1.0f / length;
             for (int i = 0; i < length; i++)
             {
-                float t = dt*i;
-                float p = t*t*(p2-2*p1+p0) + t*(2*p1-2*p0) + p0;
+                float t = dt * i;
+                float p = t * t * (p2 - 2 * p1 + p0) + t * (2 * p1 - 2 * p0) + p0;
                 Matrix m = Matrix.Scaling(Vector3.Lerp(scaling1, scaling2, p)) * Matrix.RotationQuaternion(Quaternion.Slerp(q1, q2, p)) * Matrix.Translation(Vector3.CatmullRom(v0, v1, v2, v3, p));
                 ret[i] = new TMOMat(ref m);
             }
@@ -891,7 +897,7 @@ namespace TDCG
             ret.matrices = new TMOMat[frame0.matrices.Length];
             for (int i = 0; i < frame0.matrices.Length; i++)
             {
-                ret.matrices[i] = TMOMat.AddSub( frame0.matrices[i], frame1.matrices[id_pair[i]], frame2.matrices[id_pair[i]] );
+                ret.matrices[i] = TMOMat.AddSub(frame0.matrices[i], frame1.matrices[id_pair[i]], frame2.matrices[id_pair[i]]);
             }
             return ret;
         }
@@ -1266,6 +1272,29 @@ namespace TDCG
             }
         }
 
+        static Vector3 Reciprocal(Vector3 v)
+        {
+            return new Vector3(1 / v.X, 1 / v.Y, 1 / v.Z);
+        }
+
+        static void ScalingLocal(ref Matrix m, Vector3 scaling)
+        {
+            m.M11 *= scaling.X;
+            m.M21 *= scaling.X;
+            m.M31 *= scaling.X;
+            m.M41 *= scaling.X;
+
+            m.M12 *= scaling.Y;
+            m.M22 *= scaling.Y;
+            m.M32 *= scaling.Y;
+            m.M42 *= scaling.Y;
+
+            m.M13 *= scaling.Z;
+            m.M23 *= scaling.Z;
+            m.M33 *= scaling.Z;
+            m.M43 *= scaling.Z;
+        }
+
         /// <summary>
         /// 変形行列。これは 拡大行列 x 回転行列 x 位置行列 です。
         /// </summary>
@@ -1275,7 +1304,13 @@ namespace TDCG
             {
                 if (need_update_transformation)
                 {
-                    transformation_matrix = ScalingMatrix * RotationMatrix * TranslationMatrix;
+                    Matrix m = ScalingMatrix * RotationMatrix;
+                    m.M41 = translation.X;
+                    m.M42 = translation.Y;
+                    m.M43 = translation.Z;
+                    if (parent != null)
+                        ScalingLocal(ref m, Reciprocal(parent.Scaling));
+                    transformation_matrix = m;
                     need_update_transformation = false;
                 }
                 return transformation_matrix;
@@ -1283,8 +1318,11 @@ namespace TDCG
             set
             {
                 transformation_matrix = value;
-                translation = Helper.DecomposeMatrix(ref value, out scaling);
-                rotation = Quaternion.RotationMatrix(value);
+                Matrix m = value;
+                if (parent != null)
+                    ScalingLocal(ref m, parent.Scaling);
+                translation = Helper.DecomposeMatrix(ref m, out scaling);
+                rotation = Quaternion.RotationMatrix(m);
             }
         }
     }
